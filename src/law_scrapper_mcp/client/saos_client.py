@@ -21,6 +21,14 @@ from law_scrapper_mcp.client.exceptions import (
     SaosApiError,
 )
 
+class _SaosServerError(Exception):
+    """Helper exception for SAOS 5xx server errors to trigger tenacity retry."""
+
+    def __init__(self, status_code: int, response: httpx.Response) -> None:
+        super().__init__(f"Server error: {status_code}")
+        self.status_code = status_code
+        self.response = response
+
 
 class SaosClient:
     """Async HTTP client for SAOS API with retry, caching and circuit breaker."""
@@ -63,8 +71,22 @@ class SaosClient:
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(min=1, max=10),
-        retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
+        retry=retry_if_exception_type((httpx.TimeoutException, _SaosServerError)),
+        reraise=True,
     )
+    async def _execute_request_with_retry(
+        self, method: str, url: str, **kwargs: Any
+    ) -> httpx.Response:
+        """Execute request with retry logic (only retries 5xx and timeouts)."""
+        assert self._client is not None
+        try:
+            response = await self._client.request(method, url, **kwargs)
+            if response.status_code >= 500:
+                raise _SaosServerError(response.status_code, response)
+            return response
+        except httpx.TimeoutException:
+            raise
+
     async def _request(
         self, method: str, path: str, **kwargs: Any
     ) -> httpx.Response:
@@ -98,32 +120,37 @@ class SaosClient:
 
         async with self._semaphore:
             try:
-                response = await self._client.request(method, url, **kwargs)
-                response.raise_for_status()
+                response = await self._execute_request_with_retry(method, url, **kwargs)
+                
+                # Check for 4xx errors (client errors) which are raised directly without retry
+                if response.status_code >= 400:
+                    if response.status_code == 404:
+                        parts = path.rstrip("/").split("/")
+                        judgment_id = parts[-1] if parts else path
+                        raise JudgmentNotFoundError(judgment_id)
+                    else:
+                        raise SaosApiError(
+                            f"Błąd HTTP {response.status_code}: {response.text}",
+                            status_code=response.status_code,
+                            url=url,
+                        )
+
+                # Successful real 2xx response
                 self._circuit_breaker.record_success()
                 return response
-            except httpx.TimeoutException:
+            except (httpx.TimeoutException, _SaosServerError) as e:
+                # These are only raised when tenacity retries are exhausted (transient 5xx or timeouts)
                 self._circuit_breaker.record_failure()
-                raise
-            except httpx.HTTPStatusError as e:
-                status_code = e.response.status_code
-                if status_code == 404:
-                    parts = path.rstrip("/").split("/")
-                    judgment_id = parts[-1] if parts else path
-                    raise JudgmentNotFoundError(judgment_id) from e
-                elif status_code in (502, 503):
-                    self._circuit_breaker.record_failure()
-                    raise ApiUnavailableError(
-                        f"API SAOS tymczasowo niedostępne: {status_code}",
-                        status_code=status_code,
-                        url=url,
-                    ) from e
-                else:
-                    raise SaosApiError(
-                        f"Błąd HTTP {status_code}: {e.response.text}",
-                        status_code=status_code,
-                        url=url,
-                    ) from e
+
+                status_code = 503
+                if isinstance(e, _SaosServerError):
+                    status_code = e.status_code
+
+                raise ApiUnavailableError(
+                    f"API SAOS tymczasowo niedostępne: {status_code}",
+                    status_code=status_code,
+                    url=url,
+                ) from e
 
     async def get_json(
         self, path: str, params: dict[str, Any] | None = None, cache_ttl: int | None = None

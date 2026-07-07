@@ -66,7 +66,6 @@ class JudgmentsService:
             "pageSize": page_size,
             "pageNumber": page_number,
         }
-        
         summary_parts = []
 
         if all_phrase:

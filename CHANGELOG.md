@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tool count: 13 → 14** — Added `search_judgments` tool.
 - **Server instructions** — Updated instructions to support court judgments search workflows.
 
+### Fixed
+
+- **SaosClient Retry & Circuit Breaker Logic** — Fixed tenacity decorator to avoid retrying 4xx client errors (e.g. 404 JudgmentNotFoundError). Introduced a private `_SaosServerError` exception so that only timeouts and 5xx errors are retried. Updated circuit breaker so that success and failure are counted once per logical request execution, rather than per tenacity retry attempt.
+
+
 ## [2.3.1] - 2026-02-20
 
 ### Fixed

@@ -57,3 +57,16 @@ async def test_live_saos_get_details(judgments_service: JudgmentsService):
     assert details.id == judgment_id
     assert details.href is not None
     assert details.textContent is not None
+
+
+async def test_live_saos_search_with_lists(judgments_service: JudgmentsService):
+    """Test live search on SAOS API using list parameters."""
+    output = await judgments_service.search(
+        all_phrase="własność",
+        judgment_types=["SENTENCE", "DECISION"],
+        page_size=10,
+    )
+    assert output.total_count > 0
+    assert len(output.results) > 0
+    assert output.results[0].judgmentType in ["SENTENCE", "DECISION"]
+
