@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-07-07
+
+### Added
+
+- **SAOS Integration** — Added Polish court judgments search integration from the official SAOS API (www.saos.org.pl/api).
+- **`search_judgments` tool** — Search Polish court judgments by keywords, sygnatura (case number), judges, dates, court types, and judgment types.
+- **`SaosClient` & `JudgmentsService`** — Async client and service with tenacity retry, circuit breaker, semantic caching, and Pydantic validation.
+- **Integration testing suite** — Integration tests for live SAOS API calls.
+
+### Changed
+
+- **Tool count: 13 → 14** — Added `search_judgments` tool.
+- **Server instructions** — Updated instructions to support court judgments search workflows.
+
 ## [2.3.1] - 2026-02-20
 
 ### Fixed

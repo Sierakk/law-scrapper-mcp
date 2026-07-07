@@ -7,10 +7,13 @@ from law_scrapper_mcp.client.exceptions import (
     ContentNotAvailableError,
     DocumentNotLoadedError,
     InvalidEliError,
+    JudgmentNotFoundError,
     LawScrapperError,
+    SaosApiError,
     SejmApiError,
 )
 from law_scrapper_mcp.client.sejm_client import SejmApiClient
+from law_scrapper_mcp.client.saos_client import SaosClient
 
 __all__ = [
     "ActNotFoundError",
@@ -18,8 +21,11 @@ __all__ = [
     "ContentNotAvailableError",
     "DocumentNotLoadedError",
     "InvalidEliError",
+    "JudgmentNotFoundError",
     "LawScrapperError",
+    "SaosApiError",
     "SejmApiError",
     "SejmApiClient",
+    "SaosClient",
     "TTLCache",
 ]

@@ -9,6 +9,7 @@ import pytest
 
 from law_scrapper_mcp.client.cache import TTLCache
 from law_scrapper_mcp.client.sejm_client import SejmApiClient
+from law_scrapper_mcp.client.saos_client import SaosClient
 from law_scrapper_mcp.services.content_processor import ContentProcessor
 from law_scrapper_mcp.services.document_store import DocumentStore
 
@@ -68,6 +69,18 @@ async def mock_client(cache: TTLCache) -> SejmApiClient:
     Note: Tests using this fixture should use respx to mock HTTP responses.
     """
     client = SejmApiClient(cache=cache, timeout=30.0, max_concurrent=10)
+    await client.start()
+    yield client
+    await client.close()
+
+
+@pytest.fixture
+async def mock_saos_client(cache: TTLCache) -> SaosClient:
+    """Create a SaosClient with mocked httpx.
+
+    Note: Tests using this fixture should use respx to mock HTTP responses.
+    """
+    client = SaosClient(cache=cache, timeout=30.0, max_concurrent=10)
     await client.start()
     yield client
     await client.close()

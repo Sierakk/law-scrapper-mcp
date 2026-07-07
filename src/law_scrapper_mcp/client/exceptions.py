@@ -20,6 +20,26 @@ class SejmApiError(LawScrapperError):
         self.url = url
 
 
+class SaosApiError(LawScrapperError):
+    """Error from SAOS API."""
+
+    def __init__(
+        self, message: str, status_code: int | None = None, url: str | None = None
+    ):
+        super().__init__(message)
+        self.status_code = status_code
+        self.url = url
+
+
+class JudgmentNotFoundError(SaosApiError):
+    """Judgment not found in the API."""
+
+    def __init__(self, judgment_id: int | str):
+        super().__init__(f"Nie znaleziono orzeczenia: {judgment_id}", status_code=404)
+        self.judgment_id = judgment_id
+
+
+
 class ActNotFoundError(SejmApiError):
     """Act not found in the API."""
 

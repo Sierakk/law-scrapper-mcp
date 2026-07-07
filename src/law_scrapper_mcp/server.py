@@ -15,6 +15,8 @@ from law_scrapper_mcp.services.changes_service import ChangesService
 from law_scrapper_mcp.services.content_processor import ContentProcessor
 from law_scrapper_mcp.services.document_store import DocumentStore
 from law_scrapper_mcp.services.metadata_service import MetadataService
+from law_scrapper_mcp.client.saos_client import SaosClient
+from law_scrapper_mcp.services.judgments_service import JudgmentsService
 from law_scrapper_mcp.services.result_store import ResultStore
 from law_scrapper_mcp.services.search_service import SearchService
 from law_scrapper_mcp.tools import register_all_tools
@@ -41,6 +43,14 @@ async def lifespan(server):
     )
     await client.start()
 
+    saos_client = SaosClient(
+        cache=cache,
+        timeout=settings.api_timeout,
+        max_concurrent=settings.api_max_concurrent,
+        circuit_breaker=circuit_breaker,
+    )
+    await saos_client.start()
+
     document_store = DocumentStore(
         max_documents=settings.doc_store_max_documents,
         max_size_bytes=settings.doc_store_max_size_bytes,
@@ -53,9 +63,11 @@ async def lifespan(server):
     search_service = SearchService(client)
     act_service = ActService(client, document_store, content_processor)
     changes_service = ChangesService(client)
+    judgments_service = JudgmentsService(saos_client)
 
     yield {
         "client": client,
+        "saos_client": saos_client,
         "cache": cache,
         "document_store": document_store,
         "content_processor": content_processor,
@@ -64,9 +76,11 @@ async def lifespan(server):
         "search_service": search_service,
         "act_service": act_service,
         "changes_service": changes_service,
+        "judgments_service": judgments_service,
     }
 
     await client.close()
+    await saos_client.close()
     await cache.clear()
     logger.info("Law Scrapper MCP Server stopped")
 
@@ -74,15 +88,16 @@ async def lifespan(server):
 app = FastMCP(
     name=settings.server_name,
     version=settings.server_version,
-    instructions="""Jesteś specjalistycznym asystentem do analizy polskiego prawa.
-Odpowiadaj użytkownikowi w jego języku. Dane z narzędzi (tytuły aktów, statusy, typy) są po polsku.
+    instructions="""Jesteś specjalistycznym asystentem do analizy polskiego prawa i orzecznictwa.
+Odpowiadaj użytkownikowi w jego języku. Dane z narzędzi (tytuły aktów, statusy, typy, orzeczenia) są po polsku.
 
-DOSTĘPNE NARZĘDZIA (13):
+DOSTĘPNE NARZĘDZIA (14):
 
 1. WYSZUKIWANIE I PRZEGLĄDANIE:
    - search_legal_acts — wyszukuj akty po słowach kluczowych, typie (Ustawa, Rozporządzenie itp.), datach, statusie
    - browse_acts — przeglądaj wszystkie akty z danego roku i wydawcy
    - filter_results — filtruj wyniki wyszukiwania wzorcem regex, typem, datami (wymaga result_set_id z search/browse)
+   - search_judgments — wyszukuj orzeczenia sądowe w bazie SAOS po sygnaturze, sędzim, dacie, słowach kluczowych itp.
 
 2. ANALIZA AKTÓW:
    - get_act_details — szczegóły aktu (status, daty, spis treści). Użyj load_content=True aby załadować treść

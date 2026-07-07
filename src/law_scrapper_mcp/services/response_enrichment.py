@@ -217,3 +217,38 @@ def compare_hints(eli_a: str, eli_b: str) -> list[Hint]:
             parameters={"eli": eli_b},
         ),
     ]
+
+
+def judgment_search_hints(
+    total_count: int,
+    has_results: bool,
+    *,
+    was_truncated: bool = False,
+    applied_limit: int | None = None,
+) -> list[Hint]:
+    """Generate hints for judgment search results."""
+    hints = []
+    if was_truncated and applied_limit:
+        hints.append(
+            Hint(
+                message=f"Wyniki ograniczone do {applied_limit} (z {total_count} dostępnych). "
+                f"Użyj page_size/page_number do paginacji.",
+                tool="search_judgments",
+            )
+        )
+    elif total_count > 20:
+        hints.append(
+            Hint(
+                message="Użyj parametrów 'page_size' i 'page_number' do paginacji wyników.",
+                tool="search_judgments",
+            )
+        )
+    if not has_results:
+        hints.append(
+            Hint(
+                message="Brak wyników. Spróbuj poszerzyć kryteria: usuń filtry dat, zmień typ sądu lub zmień frazę wyszukiwania.",
+                tool="search_judgments",
+            )
+        )
+    return hints
+

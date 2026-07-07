@@ -16,6 +16,7 @@ def register_all_tools(mcp: FastMCP) -> None:
     from law_scrapper_mcp.tools.metadata import register as reg_metadata
     from law_scrapper_mcp.tools.relationships import register as reg_relationships
     from law_scrapper_mcp.tools.search import register as reg_search
+    from law_scrapper_mcp.tools.judgments import register as reg_judgments
 
     reg_metadata(mcp)
     reg_search(mcp)
@@ -28,3 +29,4 @@ def register_all_tools(mcp: FastMCP) -> None:
     reg_dates(mcp)
     reg_filter(mcp)
     reg_compare(mcp)
+    reg_judgments(mcp)

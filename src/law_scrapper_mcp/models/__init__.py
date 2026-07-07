@@ -27,6 +27,15 @@ from law_scrapper_mcp.models.tool_inputs import (
     TrackChangesRequest,
     parse_eli,
 )
+from law_scrapper_mcp.models.saos import (
+    CourtCase,
+    CourtType,
+    Division,
+    Judge,
+    Judgment,
+    JudgmentSearchOutput,
+    JudgmentType,
+)
 from law_scrapper_mcp.models.tool_outputs import (
     ActDetailOutput,
     ActSummaryOutput,
@@ -55,6 +64,8 @@ __all__ = [
     "MetadataCategory",
     "Publisher",
     "RelationshipType",
+    "CourtType",
+    "JudgmentType",
     # Tool inputs
     "ActDetailsRequest",
     "BrowseRequest",
@@ -78,4 +89,10 @@ __all__ = [
     "RelationshipsOutput",
     "SearchInActOutput",
     "SearchOutput",
+    # SAOS models
+    "CourtCase",
+    "Division",
+    "Judge",
+    "Judgment",
+    "JudgmentSearchOutput",
 ]
