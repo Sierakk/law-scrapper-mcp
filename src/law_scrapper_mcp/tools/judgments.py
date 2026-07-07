@@ -9,8 +9,8 @@ from typing import Annotated, Any
 
 from fastmcp import Context, FastMCP
 
-from law_scrapper_mcp.models.saos import JudgmentSearchOutput
-from law_scrapper_mcp.models.tool_outputs import EnrichedResponse
+from law_scrapper_mcp.models.saos import JudgmentSearchOutput, LinkedActsOutput
+from law_scrapper_mcp.models.tool_outputs import EnrichedResponse, Hint
 from law_scrapper_mcp.services.response_enrichment import judgment_search_hints
 from law_scrapper_mcp.tools.error_handling import handle_tool_errors
 
@@ -193,6 +193,82 @@ def register(mcp: FastMCP) -> None:
                 was_truncated=has_more,
                 applied_limit=effective_limit,
             ),
+        )
+
+        return response.model_dump_json()
+
+    @mcp.tool(tags={"judgments"})
+    @handle_tool_errors(
+        default_factory=lambda e, kw: LinkedActsOutput(
+            judgment_id=int(kw.get("judgment_id", 0)),
+            linked_acts=[],
+            total_references=0,
+            linked_count=0,
+            query_summary="Błąd wykonania",
+        ),
+    )
+    async def link_judgment_to_acts(
+        judgment_id: Annotated[
+            int,
+            "Identyfikator orzeczenia w SAOS (np. 123), które chcesz powiązać z aktami prawnymi ELI Sejmu.",
+        ],
+        ctx: Context = None,
+    ) -> str:
+        """Pobiera orzeczenie z SAOS i wiąże powołane przepisy z aktami prawnymi z bazy ELI Sejmu.
+
+        Narzędzie analizuje sekcję 'referencedRegulations' w orzeczeniu SAOS, ekstrahuje
+        powołania na Dziennik Ustaw, mapuje je do formatu ELI 'DU/{rok}/{pozycja}' (ignorując journalNo),
+        a następnie odpytuje API Sejmu (ELI) w celu pobrania aktualnych metadanych aktu
+        (tytuł, status obowiązywania).
+
+        Kiedy używać:
+        - Gdy chcesz sprawdzić, jakie konkretnie akty prawne (ustawy, rozporządzenia) zostały
+          powołane w danym wyroku.
+        - Gdy chcesz uzyskać aktualny status (np. obowiązuje, uchylony) aktów prawnych, na które
+          powołuje się sąd w wyroku.
+        - Gdy analizujesz konsekwencje prawne wyroku i potrzebujesz linków ELI do pełnych tekstów aktów.
+
+        Kiedy NIE używać:
+        - Gdy chcesz po prostu wyszukać orzeczenia po słowach kluczowych (użyj 'search_judgments').
+        - Gdy znasz już ELI aktu i interesują Cię jego zmiany (użyj 'track_changes').
+        - Gdy chcesz przeszukać treść samego aktu prawnego (użyj 'search_in_act').
+
+        Przykłady użycia:
+        1. link_judgment_to_acts(judgment_id=123)
+        2. link_judgment_to_acts(judgment_id=2345)
+        3. link_judgment_to_acts(judgment_id=10239)
+        4. link_judgment_to_acts(judgment_id=456)
+        5. link_judgment_to_acts(judgment_id=789)
+        """
+        if ctx is None:
+            raise ValueError("Brak kontekstu MCP")
+
+        judgments_service = ctx.request_context.lifespan_context["judgments_service"]
+
+        output = await judgments_service.link_to_acts(judgment_id)
+
+        hints = []
+        if output.total_references == 0:
+            hints.append(Hint(text="W tym orzeczeniu nie znaleziono żadnych powołanych przepisów (referencedRegulations)."))
+        else:
+            if output.linked_count == 0:
+                hints.append(Hint(text="Brak zmapowanych lub znalezionych aktów prawnych z ELI w tym orzeczeniu."))
+            else:
+                hints.append(Hint(text=f"Pomyślnie powiązano {output.linked_count} z {output.total_references} powołań z ELI Sejmu."))
+
+            # Check if any mapped acts were not found in ELI
+            not_found_count = sum(1 for act in output.linked_acts if act.eli and not act.is_linked)
+            if not_found_count > 0:
+                hints.append(Hint(text=f"{not_found_count} powołań ma wygenerowany kod ELI, ale nie odnaleziono ich w bazie Sejmu (oznaczone jako niepobrane)."))
+
+            # Check if any unmapped acts
+            unmapped_count = sum(1 for act in output.linked_acts if not act.eli)
+            if unmapped_count > 0:
+                hints.append(Hint(text=f"{unmapped_count} powołań nie miało wystarczających danych (roku lub pozycji), by zmapować je na ELI."))
+
+        response = EnrichedResponse(
+            data=output,
+            hints=hints,
         )
 
         return response.model_dump_json()

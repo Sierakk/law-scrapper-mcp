@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from law_scrapper_mcp.client.saos_client import SaosClient
 from law_scrapper_mcp.config import settings
@@ -12,7 +12,12 @@ from law_scrapper_mcp.models.saos import (
     Judgment,
     JudgmentSearchOutput,
     SaosSearchResponse,
+    LinkedActReference,
+    LinkedActsOutput,
 )
+
+if TYPE_CHECKING:
+    from law_scrapper_mcp.services.act_service import ActService
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +25,9 @@ logger = logging.getLogger(__name__)
 class JudgmentsService:
     """Service for searching and managing Polish court judgments."""
 
-    def __init__(self, client: SaosClient):
+    def __init__(self, client: SaosClient, act_service: ActService | None = None):
         self._client = client
+        self._act_service = act_service
 
     async def search(
         self,
@@ -133,3 +139,89 @@ class JudgmentsService:
         # SAOS wraps judgment in top-level 'data' field
         raw_judgment = data.get("data", {}) if isinstance(data, dict) else {}
         return Judgment.model_validate(raw_judgment)
+
+    async def link_to_acts(self, judgment_id: int | str) -> LinkedActsOutput:
+        """Link referenced regulations in a judgment to ELI acts."""
+        # 1. Fetch full judgment details
+        judgment = await self.get_details(judgment_id)
+
+        # 2. Extract and map referenced regulations to ELI format DU/{year}/{pos}
+        # Deduplicate repeating ELIs using a dictionary to map eli -> LinkedActReference
+        # Unmappable (missing journalYear or journalEntry) are tracked separately
+        mapped_dict: dict[str, LinkedActReference] = {}
+        unmapped: list[LinkedActReference] = []
+
+        for reg in judgment.referencedRegulations:
+            if not reg.journalYear or not reg.journalEntry:
+                unmapped.append(
+                    LinkedActReference(
+                        eli=None,
+                        title=reg.journalTitle,  # Fallback to journalTitle
+                        status=None,
+                        text=reg.text,
+                        journalTitle=reg.journalTitle,
+                        is_linked=False,
+                        error_message="Niemapowalne powołanie (brak roku lub pozycji)",
+                    )
+                )
+                continue
+
+            eli = f"DU/{reg.journalYear}/{reg.journalEntry}"
+
+            # Deduplicate by combining texts if they differ
+            if eli in mapped_dict:
+                existing = mapped_dict[eli]
+                texts = []
+                if existing.text:
+                    texts.append(existing.text)
+                if reg.text and reg.text not in texts:
+                    texts.append(reg.text)
+                existing.text = "; ".join(texts) if texts else None
+                continue
+
+            mapped_dict[eli] = LinkedActReference(
+                eli=eli,
+                title=None,
+                status=None,
+                text=reg.text,
+                journalTitle=reg.journalTitle,
+                is_linked=False,
+            )
+
+        # 3. Resolve each ELI using ActService (graceful degradation)
+        linked_count = 0
+        if self._act_service:
+            for eli, ref in mapped_dict.items():
+                try:
+                    act_details = await self._act_service.get_details(eli)
+                    ref.title = act_details.title
+                    ref.status = act_details.status
+                    ref.is_linked = True
+                    linked_count += 1
+                except Exception as e:
+                    logger.debug(f"Failed to resolve act {eli} from ELI: {e}")
+                    ref.is_linked = False
+                    ref.error_message = "nie znaleziono w ELI"
+        else:
+            for ref in mapped_dict.values():
+                ref.is_linked = False
+                ref.error_message = "Brak serwisu aktów Sejmu w systemie"
+
+        # Combine mapped and unmapped
+        all_linked_acts = list(mapped_dict.values()) + unmapped
+
+        # summary message
+        summary_parts = [
+            f"judgment_id={judgment_id}",
+            f"total_references={len(judgment.referencedRegulations)}",
+            f"linked={linked_count}",
+        ]
+        query_summary = " | ".join(summary_parts)
+
+        return LinkedActsOutput(
+            judgment_id=judgment.id,
+            linked_acts=all_linked_acts,
+            total_references=len(judgment.referencedRegulations),
+            linked_count=linked_count,
+            query_summary=query_summary,
+        )

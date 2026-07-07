@@ -55,6 +55,18 @@ class Division(BaseModel):
     court: dict[str, Any] | None = None
 
 
+class ReferencedRegulation(BaseModel):
+    """A referenced regulation inside a judgment."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    journalTitle: str | None = Field(default=None, description="Tytuł pozycji Dz.U.")
+    journalYear: int | None = Field(default=None, description="Rok Dz.U.")
+    journalNo: int | None = Field(default=None, description="Numer dziennika")
+    journalEntry: int | None = Field(default=None, description="Numer pozycji")
+    text: str | None = Field(default=None, description="Powołany przepis tekstem")
+
+
 class Judgment(BaseModel):
     """A court judgment from SAOS API."""
 
@@ -70,6 +82,7 @@ class Judgment(BaseModel):
     textContent: str | None = Field(default=None, description="Treść orzeczenia")
     keywords: list[str] = Field(default_factory=list, description="Słowa kluczowe")
     division: Division | dict[str, Any] | None = Field(default=None, description="Wydział sądu")
+    referencedRegulations: list[ReferencedRegulation] = Field(default_factory=list, description="Powołane przepisy")
 
 
 class SaosInfo(BaseModel):
@@ -98,3 +111,29 @@ class JudgmentSearchOutput(BaseModel):
     returned_count: int = Field(description="Liczba zwróconych orzeczeń")
     page_number: int | None = Field(default=None, description="Numer strony (indeksowany od 0)")
     page_size: int | None = Field(default=None, description="Rozmiar strony")
+
+
+class LinkedActReference(BaseModel):
+    """Metadata of an act linked from a judgment regulation reference."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    eli: str | None = Field(default=None, description="ELI identyfikator aktu")
+    title: str | None = Field(default=None, description="Tytuł aktu")
+    status: str | None = Field(default=None, description="Status obowiązywania")
+    text: str | None = Field(default=None, description="Powołany przepis tekstem ze źródła")
+    journalTitle: str | None = Field(default=None, description="Tytuł dziennika ze źródła")
+    is_linked: bool = Field(description="Czy udało się pobrać szczegóły z ELI")
+    error_message: str | None = Field(default=None, description="Komunikat o błędzie pobierania z ELI")
+
+
+class LinkedActsOutput(BaseModel):
+    """Output model for link_judgment_to_acts tool."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    judgment_id: int = Field(description="Identyfikator orzeczenia")
+    linked_acts: list[LinkedActReference] = Field(default_factory=list, description="Lista powiązanych aktów")
+    total_references: int = Field(description="Całkowita liczba powołań w orzeczeniu")
+    linked_count: int = Field(description="Liczba zmapowanych i pobranych aktów z ELI")
+    query_summary: str = Field(description="Podsumowanie powiązania")

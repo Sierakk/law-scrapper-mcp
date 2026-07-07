@@ -35,6 +35,9 @@ from law_scrapper_mcp.models.saos import (
     Judgment,
     JudgmentSearchOutput,
     JudgmentType,
+    LinkedActReference,
+    LinkedActsOutput,
+    ReferencedRegulation,
 )
 from law_scrapper_mcp.models.tool_outputs import (
     ActDetailOutput,
@@ -95,4 +98,7 @@ __all__ = [
     "Judge",
     "Judgment",
     "JudgmentSearchOutput",
+    "LinkedActReference",
+    "LinkedActsOutput",
+    "ReferencedRegulation",
 ]

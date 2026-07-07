@@ -11,13 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **SAOS Integration** — Added Polish court judgments search integration from the official SAOS API (www.saos.org.pl/api).
 - **`search_judgments` tool** — Search Polish court judgments by keywords, sygnatura (case number), judges, dates, court types, and judgment types.
+- **`link_judgment_to_acts` tool** — Cross-source linking tool connecting SAOS court judgments with Sejm ELI legal acts.
 - **`SaosClient` & `JudgmentsService`** — Async client and service with tenacity retry, circuit breaker, semantic caching, and Pydantic validation.
 - **Integration testing suite** — Integration tests for live SAOS API calls.
 
 ### Changed
 
-- **Tool count: 13 → 14** — Added `search_judgments` tool.
-- **Server instructions** — Updated instructions to support court judgments search workflows.
+- **Tool count: 13 → 15** — Added `search_judgments` and `link_judgment_to_acts` tools.
+- **Server instructions** — Updated instructions to support court judgments search and cross-linking workflows.
 
 ### Fixed
 

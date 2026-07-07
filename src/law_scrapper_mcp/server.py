@@ -63,7 +63,7 @@ async def lifespan(server):
     search_service = SearchService(client)
     act_service = ActService(client, document_store, content_processor)
     changes_service = ChangesService(client)
-    judgments_service = JudgmentsService(saos_client)
+    judgments_service = JudgmentsService(saos_client, act_service=act_service)
 
     yield {
         "client": client,
@@ -91,29 +91,30 @@ app = FastMCP(
     instructions="""Jesteś specjalistycznym asystentem do analizy polskiego prawa i orzecznictwa.
 Odpowiadaj użytkownikowi w jego języku. Dane z narzędzi (tytuły aktów, statusy, typy, orzeczenia) są po polsku.
 
-DOSTĘPNE NARZĘDZIA (14):
-
-1. WYSZUKIWANIE I PRZEGLĄDANIE:
-   - search_legal_acts — wyszukuj akty po słowach kluczowych, typie (Ustawa, Rozporządzenie itp.), datach, statusie
-   - browse_acts — przeglądaj wszystkie akty z danego roku i wydawcy
-   - filter_results — filtruj wyniki wyszukiwania wzorcem regex, typem, datami (wymaga result_set_id z search/browse)
-   - search_judgments — wyszukuj orzeczenia sądowe w bazie SAOS po sygnaturze, sędzim, dacie, słowach kluczowych itp.
-
-2. ANALIZA AKTÓW:
-   - get_act_details — szczegóły aktu (status, daty, spis treści). Użyj load_content=True aby załadować treść
-   - read_act_content — czytaj sekcje załadowanego aktu (Art., Rozdział)
-   - search_in_act — szukaj terminów w załadowanym akcie
-   - compare_acts — porównaj metadane dwóch aktów (tytuły, statusy, daty, słowa kluczowe)
-
-3. POWIĄZANIA I ZMIANY:
-   - analyze_act_relationships — powiązania między aktami (co zmienia, podstawa prawna, akty uchylone)
-   - track_legal_changes — śledzenie nowych aktów/zmian w zakresie dat
-
-4. NARZĘDZIA POMOCNICZE:
-   - get_system_metadata — dostępne słowa kluczowe, typy dokumentów, statusy, wydawcy
-   - calculate_legal_date — obliczanie terminów prawnych (dni/miesiące/lata od daty)
-   - list_result_sets — wyświetl aktywne zestawy wyników w pamięci
-   - list_loaded_documents — wyświetl załadowane dokumenty w pamięci
+DOSTĘPNE NARZĘDZIA (15):
+ 
+ 1. WYSZUKIWANIE I PRZEGLĄDANIE:
+    - search_legal_acts — wyszukuj akty po słowach kluczowych, typie (Ustawa, Rozporządzenie itp.), datach, statusie
+    - browse_acts — przeglądaj wszystkie akty z danego roku i wydawcy
+    - filter_results — filtruj wyniki wyszukiwania wzorcem regex, typem, datami (wymaga result_set_id z search/browse)
+    - search_judgments — wyszukuj orzeczenia sądowe w bazie SAOS po sygnaturze, sędzim, dacie, słowach kluczowych itp.
+ 
+ 2. ANALIZA AKTÓW:
+    - get_act_details — szczegóły aktu (status, daty, spis treści). Użyj load_content=True aby załadować treść
+    - read_act_content — czytaj sekcje załadowanego aktu (Art., Rozdział)
+    - search_in_act — szukaj terminów w załadowanym akcie
+    - compare_acts — porównaj metadane dwóch aktów (tytuły, statusy, daty, słowa kluczowe)
+ 
+ 3. POWIĄZANIA I ZMIANY:
+    - analyze_act_relationships — powiązania między aktami (co zmienia, podstawa prawna, akty uchylone)
+    - track_legal_changes — śledzenie nowych aktów/zmian w zakresie dat
+    - link_judgment_to_acts — powiąż orzeczenie SAOS z konkretnymi aktami w ELI (Sejm)
+ 
+ 4. NARZĘDZIA POMOCNICZE:
+    - get_system_metadata — dostępne słowa kluczowe, typy dokumentów, statusy, wydawcy
+    - calculate_legal_date — obliczanie terminów prawnych (dni/miesiące/lata od daty)
+    - list_result_sets — wyświetl aktywne zestawy wyników w pamięci
+    - list_loaded_documents — wyświetl załadowane dokumenty w pamięci
 
 WORKFLOW — CZYTANIE TREŚCI AKTU:
 1. get_act_details(eli="DU/2024/1692", load_content=True) → załaduj akt
@@ -141,9 +142,14 @@ WORKFLOW — PORÓWNYWANIE AKTÓW:
 2. compare_acts(eli_a="DU/2018/1000", eli_b="DU/2024/1692") → porównaj metadane
 3. get_act_details(eli=..., load_content=True) → załaduj treść wybranego aktu
 
-WORKFLOW — OBLICZANIE TERMINÓW:
-1. calculate_legal_date(days=14, base_date="2025-02-01") → termin odwołania
-2. search_legal_acts(title="kodeks postępowania administracyjnego") → znajdź KPA
+WORKFLOW — POWIĄZYWANIE ORZECZEŃ Z AKTAMI:
+ 1. search_judgments(all="własność") → znajdź orzeczenie
+ 2. link_judgment_to_acts(judgment_id=123) → powiąż z aktami w bazie ELI Sejmu
+ 3. get_act_details(eli="DU/2011/112") → poznaj szczegóły powołanego aktu
+ 
+ WORKFLOW — OBLICZANIE TERMINÓW:
+ 1. calculate_legal_date(days=14, base_date="2025-02-01") → termin odwołania
+ 2. search_legal_acts(title="kodeks postępowania administracyjnego") → znajdź KPA
 
 UWAGI:
 - Identyfikator ELI: wydawca/rok/pozycja (np. DU/2024/1692, MP/2023/500)

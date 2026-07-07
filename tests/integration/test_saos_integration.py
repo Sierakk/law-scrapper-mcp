@@ -70,3 +70,34 @@ async def test_live_saos_search_with_lists(judgments_service: JudgmentsService):
     assert len(output.results) > 0
     assert output.results[0].judgmentType in ["SENTENCE", "DECISION"]
 
+
+async def test_live_saos_link_to_acts(judgments_service: JudgmentsService):
+    """Test live linking of judgments to ELI acts using real APIs."""
+    # Find a judgment referencing a specific entry (which should have referencedRegulations)
+    search_output = await judgments_service.search(
+        law_journal_entry_code="2011/112",
+        page_size=10,
+    )
+    if not search_output.results:
+        # Fallback if no specific entry search works
+        search_output = await judgments_service.search(
+            all_phrase="ustawa",
+            page_size=10,
+        )
+
+    assert len(search_output.results) > 0
+    judgment_id = search_output.results[0].id
+
+    output = await judgments_service.link_to_acts(judgment_id)
+    assert output.judgment_id == judgment_id
+    assert output.total_references >= 0
+
+    # Verify details of any linked acts if available
+    if output.linked_count > 0:
+        linked_acts = [act for act in output.linked_acts if act.is_linked]
+        assert len(linked_acts) > 0
+        assert linked_acts[0].title is not None
+        assert len(linked_acts[0].title) > 0
+        assert linked_acts[0].eli is not None
+
+
